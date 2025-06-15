@@ -1,378 +1,124 @@
 #!/bin/bash
 
-# ╔════════════════════════════════════════════════════════╗
-# ║      🚀 CREAR REPOSITORIO + CONSTRUIR Y SUBIR IMAGEN             ║
-# ║                  ARTIFACT REGISTRY - GCP                         ║
-# ╚════════════════════════════════════════════════════════╝
+# ╔══════════════════════════════════════════════════════════════════════╗
+# ║       🔐 SCRIPT DE CONFIGURACIÓN DE ROOT Y SSH                       ║
+# ║           Autor: ChristopherAGT - Guatemalteco 🇬🇹                   ║
+# ╚══════════════════════════════════════════════════════════════════════╝
 
-# Colores 🎨
-verde="\e[1;32m"
-rojo="\e[1;31m"
-azul="\e[1;34m"
-amarillo="\e[1;33m"
-cyan="\e[1;36m"
-neutro="\e[0m"
+# 🎨 Colores y formato
+VERDE="\033[1;32m"
+ROJO="\033[1;31m"
+AMARILLO="\033[1;33m"
+AZUL="\033[1;34m"
+NEGRITA="\033[1m"
+NEUTRO="\033[0m"
 
-# 🔧 Región por defecto (se sobrescribirá con selección)
-REGION="us-east1"  # Carolina del Sur
+#cat /etc/ssh/sshd_config.bak (ver backup)
+#cp /etc/ssh/sshd_config.bak /etc/ssh/sshd_config (restaurar backup)
+#systemctl restart ssh || service ssh restart (reiniciar servicio)
 
-echo -e "${cyan}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "📦 SELECCIÓN DE REPOSITORIO EN ARTIFACT REGISTRY"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-while true; do
-    echo -e "${neutro}"
-    PS3=$'\e[33mSeleccione una opción:\e[0m '
-    select opcion in "Usar existente" "Crear nuevo"; do
-        case $REPLY in
-            1)
-                echo -e "${azul}🔍 Buscando repositorios disponibles en $REGION...${neutro}"
-                REPO_LIST=$(gcloud artifacts repositories list --location="$REGION" --format="value(name)")
-                if [[ -z "$REPO_LIST" ]]; then
-                    echo -e "${rojo}❌ No hay repositorios disponibles en $REGION. Se creará uno nuevo.${neutro}"
-                    opcion="Crear nuevo"
-                    break 2
-                else
-                    PS3=$'\e[33mSeleccione un repositorio:\e[0m '
-                    select repo in $REPO_LIST; do
-                        if [[ -n "$repo" ]]; then
-                            REPO_NAME=$(basename "$repo")
-                            echo -e "${verde}✔ Repositorio seleccionado: $REPO_NAME${neutro}"
-                            break 3
-                        else
-                            echo -e "${rojo}❌ Selección no válida. Intenta nuevamente.${neutro}"
-                        fi
-                    done
-                fi
-                ;;
-            2)
-                echo -e "${azul}📛 Ingresa un nombre para el nuevo repositorio (Enter para usar 'google-cloud'):${neutro}"
-                read -p "📝 Nombre del repositorio: " input_repo
-                REPO_NAME="${input_repo:-google-cloud}"
-                echo -e "${verde}✔ Repositorio a crear/usar: $REPO_NAME${neutro}"
-
-                # -------------------- BLOQUE DE SELECCIÓN DE REGIÓN --------------------
-                echo -e "${cyan}"
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo "🌍 SELECCIÓN DE REGIÓN DE DESPLIEGUE"
-                echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                echo -e "${neutro}"
-
-                declare -a REGIONS=(
-                  "🇿🇦 africa-south1 (Johannesburgo)"
-                  "🇨🇦 northamerica-northeast1 (Montreal)"
-                  "🇨🇦 northamerica-northeast2 (Toronto)"
-                  "🇲🇽 northamerica-south1 (México)"
-                  "🇧🇷 southamerica-east1 (São Paulo)"
-                  "🇨🇱 southamerica-west1 (Santiago)"
-                  "🇺🇸 us-central1 (Iowa)"
-                  "🇺🇸 us-east1 (Carolina del Sur)"
-                  "🇺🇸 us-east4 (Virginia del Norte)"
-                  "🇺🇸 us-east5 (Columbus)"
-                  "🇺🇸 us-south1 (Dallas)"
-                  "🇺🇸 us-west1 (Oregón)"
-                  "🇺🇸 us-west2 (Los Ángeles)"
-                  "🇺🇸 us-west3 (Salt Lake City)"
-                  "🇺🇸 us-west4 (Las Vegas)"
-                  "🇹🇼 asia-east1 (Taiwán)"
-                  "🇭🇰 asia-east2 (Hong Kong)"
-                  "🇯🇵 asia-northeast1 (Tokio)"
-                  "🇯🇵 asia-northeast2 (Osaka)"
-                  "🇰🇷 asia-northeast3 (Seúl)"
-                  "🇮🇳 asia-south1 (Bombay)"
-                  "🇮🇳 asia-south2 (Delhi)"
-                  "🇸🇬 asia-southeast1 (Singapur)"
-                  "🇮🇩 asia-southeast2 (Yakarta)"
-                  "🇦🇺 australia-southeast1 (Sídney)"
-                  "🇦🇺 australia-southeast2 (Melbourne)"
-                  "🇵🇱 europe-central2 (Varsovia)"
-                  "🇫🇮 europe-north1 (Finlandia)"
-                  "🇸🇪 europe-north2 (Estocolmo)"
-                  "🇪🇸 europe-southwest1 (Madrid)"
-                  "🇧🇪 europe-west1 (Bélgica)"
-                  "🇬🇧 europe-west2 (Londres)"
-                  "🇩🇪 europe-west3 (Fráncfort)"
-                  "🇳🇱 europe-west4 (Netherlands)"
-                  "🇨🇭 europe-west6 (Zúrich)"
-                  "🇮🇹 europe-west8 (Milán)"
-                  "🇫🇷 europe-west9 (París)"
-                  "🇩🇪 europe-west10 (Berlín)"
-                  "🇮🇹 europe-west12 (Turín)"
-                  "🇶🇦 me-central1 (Doha)"
-                  "🇸🇦 me-central2 (Dammam)"
-                  "🇮🇱 me-west1 (Tel Aviv)"
-                )
-                declare -a REGION_CODES=(
-                  "africa-south1"
-                  "northamerica-northeast1"
-                  "northamerica-northeast2"
-                  "northamerica-south1"
-                  "southamerica-east1"
-                  "southamerica-west1"
-                  "us-central1"
-                  "us-east1"
-                  "us-east4"
-                  "us-east5"
-                  "us-south1"
-                  "us-west1"
-                  "us-west2"
-                  "us-west3"
-                  "us-west4"
-                  "asia-east1"
-                  "asia-east2"
-                  "asia-northeast1"
-                  "asia-northeast2"
-                  "asia-northeast3"
-                  "asia-south1"
-                  "asia-south2"
-                  "asia-southeast1"
-                  "asia-southeast2"
-                  "australia-southeast1"
-                  "australia-southeast2"
-                  "europe-central2"
-                  "europe-north1"
-                  "europe-north2"
-                  "europe-southwest1"
-                  "europe-west1"
-                  "europe-west2"
-                  "europe-west3"
-                  "europe-west4"
-                  "europe-west6"
-                  "europe-west8"
-                  "europe-west9"
-                  "europe-west10"
-                  "europe-west12"
-                  "me-central1"
-                  "me-central2"
-                  "me-west1"
-                )
-
-                for i in "${!REGIONS[@]}"; do
-                  printf "%2d) %s\n" $((i+1)) "${REGIONS[$i]}"
-                done
-
-                while true; do
-                  read -p "Ingrese el número de la región deseada: " REGION_INDEX
-                  
-                  if ! [[ "$REGION_INDEX" =~ ^[0-9]+$ ]] || (( REGION_INDEX < 1 || REGION_INDEX > ${#REGION_CODES[@]} )); then
-                    echo -e "${rojo}"
-                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                    echo "❌ SELECCIÓN DE REGIÓN INVÁLIDA"
-                    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-                    echo -e "${neutro}"
-                    echo -e "${rojo}❌ Selección inválida. Por favor ingrese un número válido.${neutro}"
-                  else
-                    REGION=${REGION_CODES[$((REGION_INDEX-1))]}
-                    echo -e "${verde}✔ Región seleccionada: $REGION${neutro}"
-                    break
-                  fi
-                done
-                # -------------------- FIN BLOQUE SELECCIÓN DE REGIÓN --------------------
-
-                break 2
-                ;;
-            *)
-                echo -e "${rojo}❌ Opción inválida. Por favor selecciona 1 o 2.${neutro}"
-                break
-                ;;
-        esac
-    done
-done
-
-echo -e "${cyan}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🔍 OBTENIENDO ID DEL PROYECTO ACTIVO"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-PROJECT_ID=$(gcloud config get-value project 2>/dev/null)
-if [[ -z "$PROJECT_ID" ]]; then
-    echo -e "${rojo}❌ No se pudo obtener el ID del proyecto. Ejecuta 'gcloud init' primero.${neutro}"
-    exit 1
-fi
-echo -e "${verde}✔ Proyecto activo: $PROJECT_ID${neutro}"
-
-echo -e "${cyan}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "📦 VERIFICANDO EXISTENCIA DEL REPOSITORIO"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-EXISTS=$(gcloud artifacts repositories list \
-    --location="$REGION" \
-    --filter="name~$REPO_NAME" \
-    --format="value(name)")
-
-if [[ -n "$EXISTS" ]]; then
-    echo -e "${amarillo}⚠️ El repositorio '$REPO_NAME' ya existe. Omitiendo creación.${neutro}"
-else
-    echo -e "${azul}📦 Creando repositorio...${neutro}"
-    gcloud artifacts repositories create "$REPO_NAME" \
-      --repository-format=docker \
-      --location="$REGION" \
-      --description="Repositorio Docker para SSH-WS en GCP" \
-      --quiet
-    [[ $? -ne 0 ]] && echo -e "${rojo}❌ Error al crear el repositorio.${neutro}" && exit 1
-    echo -e "${verde}✅ Repositorio creado correctamente.${neutro}"
-fi
-
-echo -e "${cyan}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🔐 COMPROBANDO AUTENTICACIÓN DOCKER"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-if ! grep -q "$REGION-docker.pkg.dev" ~/.docker/config.json 2>/dev/null; then
-    echo -e "${azul}🔐 Configurando Docker para autenticación...${neutro}"
-    gcloud auth configure-docker "$REGION-docker.pkg.dev" --quiet
-    echo -e "${verde}✅ Docker autenticado correctamente.${neutro}"
-else
-    echo -e "${verde}🔐 Docker ya autenticado. Omitiendo configuración.${neutro}"
-fi
-
-echo -e "${cyan}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🏗️ CONSTRUCCIÓN DE IMAGEN DOCKER"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-while true; do
-    echo -e "${azul}📛 Ingresa un nombre para la imagen Docker (Enter para usar 'gcp'):${neutro}"
-    read -p "📝 Nombre de la imagen: " input_image
-    IMAGE_NAME="${input_image:-gcp}"
-    IMAGE_TAG="1.0"
-    IMAGE_PATH="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME"
-
-    echo -e "${azul}🔍 Comprobando si la imagen '${IMAGE_NAME}:${IMAGE_TAG}' ya existe...${neutro}"
-    
-    IMAGE_FULL="$REGION-docker.pkg.dev/$PROJECT_ID/$REPO_NAME/$IMAGE_NAME:$IMAGE_TAG"
-
-    if gcloud artifacts docker images describe "$IMAGE_FULL" &>/dev/null; then
-        echo -e "${rojo}❌ Ya existe una imagen '${IMAGE_NAME}:${IMAGE_TAG}' en el repositorio.${neutro}"
-        echo -e "${amarillo}🔁 Por favor, elige un nombre diferente para evitar sobrescribir.${neutro}"
-        continue
-    else
-        echo -e "${verde}✔ Nombre de imagen válido y único.${neutro}"
-        break
-    fi
-done
-
-echo -e "${cyan}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "📥 CLONANDO REPOSITORIO"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-if [[ -d "sshws-gcp" ]]; then
-    echo -e "${amarillo}🧹 Eliminando versión previa del directorio sshws-gcp...${neutro}"
-    rm -rf sshws-gcp
-fi
-
-git clone https://gitlab.com/PANCHO7532/sshws-gcp || {
-    echo -e "${rojo}❌ Error al clonar el repositorio.${neutro}"
-    exit 1
+# ⏳ Spinner de carga (con proceso como argumento)
+spinner() {
+  local pid
+  "$@" &
+  pid=$!
+  local delay=0.1
+  local spinstr='|/-\'
+  echo -ne "${AMARILLO}"
+  while ps -p $pid &>/dev/null; do
+    local temp=${spinstr#?}
+    printf " [%c]  " "$spinstr"
+    spinstr=$temp${spinstr%"$temp"}
+    sleep $delay
+    printf "\b\b\b\b\b\b"
+  done
+  wait $pid 2>/dev/null
+  echo -ne "${NEUTRO}"
 }
 
-cd sshws-gcp || {
-    echo -e "${rojo}❌ No se pudo acceder al directorio sshws-gcp.${neutro}"
-    exit 1
-}
-
-echo -e "${cyan}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🐳 CONSTRUYENDO IMAGEN DOCKER"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-docker build -t "$IMAGE_PATH:$IMAGE_TAG" .
-
-[[ $? -ne 0 ]] && echo -e "${rojo}❌ Error al construir la imagen.${neutro}" && exit 1
-
-echo -e "${cyan}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "📤 SUBIENDO IMAGEN A ARTIFACT REGISTRY"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-docker push "$IMAGE_PATH:$IMAGE_TAG"
-
-[[ $? -ne 0 ]] && echo -e "${rojo}❌ Error al subir la imagen.${neutro}" && exit 1
-
-echo -e "${cyan}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🧹 LIMPIANDO DIRECTORIO TEMPORAL"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-cd ..
-rm -rf sshws-gcp
-
-echo -e "${amarillo}"
-echo "╔════════════════════════════════════════════════════════════╗"
-echo "║ ✅ Imagen '$IMAGE_NAME:$IMAGE_TAG' subida exitosamente.       ║"
-echo "║ 📍 Ruta: $IMAGE_PATH:$IMAGE_TAG"
-echo "╚════════════════════════════════════════════════════════════╝"
-
-# 🚀 DESPLIEGUE DEL SERVICIO EN CLOUD RUN
-echo -e "${cyan}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "🌐 DESPLEGANDO SERVICIO EN CLOUD RUN"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo -e "${neutro}"
-
-# Solicitar al usuario el nombre del servicio (default: rain)
-read -p "📛 Ingresa el nombre que deseas para el servicio en Cloud Run (default: rain): " SERVICE_NAME
-SERVICE_NAME=${SERVICE_NAME:-rain}
-
-# 🔐 Solicitar y validar el subdominio personalizado para DHOST
-while true; do
-    echo -e "${amarillo}"
-    read -p "🌐 Ingrese su subdominio personalizado (Cloudflare): " DHOST
-    echo -e "${neutro}"
-
-    # Validar que no esté vacío, tenga al menos un punto, y no tenga espacios
-    if [[ -z "$DHOST" || "$DHOST" != *.* || "$DHOST" == *" "* ]]; then
-        echo -e "${rojo}❌ El subdominio no puede estar vacío, debe contener al menos un punto y no tener espacios.${neutro}"
-        continue
-    fi
-
-    echo -e "${verde}✅ Se ingresó el subdominio: $DHOST${neutro}"
-    echo    # 🟦 Línea en blanco para separación visual
-    echo -ne "${cyan}¿Desea continuar con este subdominio? (s/n): ${neutro}"
-    read -r CONFIRMAR
-    CONFIRMAR=${CONFIRMAR,,}  # Convertir a minúscula
-
-    if [[ "$CONFIRMAR" == "s" ]]; then
-        break
-    else
-        echo -e "${azul}🔁 Vamos a volver a solicitar el subdominio...${neutro}"
-    fi
-done
-
-# Obtener número de proyecto (por si lo necesitas después)
-PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format="value(projectNumber)")
-
-# Ejecutar despliegue
-SERVICE_URL=$(gcloud run deploy "$SERVICE_NAME" \
-  --image "$IMAGE_PATH:$IMAGE_TAG" \
-  --platform managed \
-  --region "$REGION" \
-  --allow-unauthenticated \
-  --port 8080 \
-  --timeout 3600 \
-  --concurrency 100 \
-  --set-env-vars="DHOST=${DHOST},DPORT=22" \
-  --quiet \
-  --format="value(status.url)")
-
-# Verificar éxito del despliegue
-if [[ $? -ne 0 ]]; then
-    echo -e "${rojo}❌ Error en el despliegue de Cloud Run.${neutro}"
-    exit 1
+# 🛡️ Verificar si se ejecuta como root
+if [[ "$EUID" -ne 0 ]]; then
+  echo -e "${ROJO}⚠️ Este script requiere permisos de administrador.${NEUTRO}"
+  echo -e "${AMARILLO}🔁 Reintentando con sudo...${NEUTRO}\n"
+  exec sudo bash "$0" "$@"
 fi
 
-# Dominio regional del servicio
-REGIONAL_DOMAIN="https://${SERVICE_NAME}-${PROJECT_NUMBER}.${REGION}.run.app"
+clear
+echo -e "${AZUL}${NEGRITA}╔════════════════════════════════════════════╗"
+echo -e "║      🔐 CONFIGURACIÓN ROOT Y SSH           ║"
+echo -e "╚════════════════════════════════════════════╝${NEUTRO}\n"
 
-# Mostrar resumen final
-echo -e "${verde}"
-echo "╔════════════════════════════════════════════════════════════╗"
-echo "║ 📦 INFORMACIÓN DEL DESPLIEGUE EN CLOUD RUN                  ║"
-echo "╠════════════════════════════════════════════════════════════╣"
-echo "║ 🗂️ ID del Proyecto GCP  : $PROJECT_ID"
-echo "║ 🔢 Número de Proyecto   : $PROJECT_NUMBER"
-echo "║ 🗃️ Repositorio Docker   : $REPO_NAME"
-echo "║ 🖼️ Nombre de la Imagen  : $IMAGE_NAME:$IMAGE_TAG"
-echo "║ 📛 Nombre del Servicio  : $SERVICE_NAME"
-echo "║ 📍 Región de Despliegue : $REGION"
-echo "║ 🌐 URL del Servicio     : $SERVICE_URL"
-echo "║ 🌐 Dominio Regional     : $REGIONAL_DOMAIN"
-echo "╚════════════════════════════════════════════════════════════╝"
-echo -e "${neutro}"
+# 🔥 Limpiar iptables
+echo -e "${AMARILLO}🧹 Limpiando reglas de iptables...${NEUTRO}"
+spinner iptables -F
+
+# ➕ Permitir tráfico esencial
+iptables -A INPUT -i lo -j ACCEPT
+iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+iptables -A INPUT -p tcp --dport 22 -j ACCEPT  # SSH
+
+# 🌐 Configurar DNS
+echo -e "${AMARILLO}🌍 Estableciendo DNS de Cloudflare y Google...${NEUTRO}"
+chattr -i /etc/resolv.conf 2>/dev/null
+cat > /etc/resolv.conf <<EOF
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+EOF
+
+# 🔄 Actualizar paquetes
+echo -e "${AZUL}📦 Actualizando el sistema...${NEUTRO}"
+spinner apt update -y
+
+# 🛠️ Configuración de SSH
+SSH_CONFIG="/etc/ssh/sshd_config"
+SSH_CONFIG_CLOUDIMG="/etc/ssh/sshd_config.d/60-cloudimg-settings.conf"
+
+echo -e "${AMARILLO}🔧 Configurando acceso root por SSH...${NEUTRO}"
+
+# Backup antes de modificar
+cp "$SSH_CONFIG" "${SSH_CONFIG}.bak"
+
+# Función para reemplazar o agregar configuraciones
+reemplazar_o_agregar() {
+  local archivo="$1"
+  local buscar="$2"
+  local reemplazo="$3"
+  if grep -q "$buscar" "$archivo"; then
+    sed -i "s|$buscar|$reemplazo|g" "$archivo"
+  else
+    echo "$reemplazo" >> "$archivo"
+  fi
+}
+
+reemplazar_o_agregar "$SSH_CONFIG" "prohibit-password" "yes"
+reemplazar_o_agregar "$SSH_CONFIG" "without-password" "yes"
+sed -i "s/^#\?PermitRootLogin.*/PermitRootLogin yes/" "$SSH_CONFIG"
+sed -i "s/^#\?PasswordAuthentication.*/PasswordAuthentication yes/" "$SSH_CONFIG"
+
+if [[ -f "$SSH_CONFIG_CLOUDIMG" ]]; then
+  sed -i "s/^PasswordAuthentication no/PasswordAuthentication yes/" "$SSH_CONFIG_CLOUDIMG"
+fi
+
+# 🔄 Reiniciar servicio SSH
+echo -e "${AZUL}🔁 Reiniciando SSH para aplicar cambios...${NEUTRO}"
+systemctl restart ssh 2>/dev/null || service ssh restart
+
+# 🔐 Solicitar nueva contraseña root
+echo -ne "\n${VERDE}${NEGRITA}📝 Ingresa la nueva contraseña para el usuario ROOT:${NEUTRO} "
+read -s nueva_pass
+echo
+
+if [[ -z "$nueva_pass" ]]; then
+  echo -e "${ROJO}❌ No ingresaste ninguna contraseña. Cancelando...${NEUTRO}"
+  exit 1
+fi
+
+echo "root:$nueva_pass" | chpasswd
+echo -e "${VERDE}✅ Contraseña actualizada correctamente.${NEUTRO}"
+
+# ⚠️ Advertencia
+echo -e "\n${ROJO}${NEGRITA}⚠️ IMPORTANTE:${NEUTRO} Este script habilita el acceso SSH root con contraseña."
+echo -e "${ROJO}Se recomienda combinarlo con medidas de seguridad como fail2ban, firewall o VPN.${NEUTRO}"
+
+# 🎉 Fin
+echo -e "\n${VERDE}${NEGRITA}🎉 Script ejecutado exitosamente. Tu servidor está listo.${NEUTRO}\n"
